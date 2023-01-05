@@ -1,0 +1,474 @@
+
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+	<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>Andrew Richardson</title>
+	
+	<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet">
+	
+	<!-- Animate.css -->
+	<link rel="stylesheet" href="css/animate.css">
+	<!-- Icomoon Icon Fonts-->
+	<link rel="stylesheet" href="css/icomoon.css">
+	<!-- Bootstrap  -->
+	<link rel="stylesheet" href="css/bootstrap.css">
+	<!-- Flexslider  -->
+	<link rel="stylesheet" href="css/flexslider.css">
+	<!-- Theme style  -->
+	<link rel="stylesheet" href="css/style.css">
+
+	<!-- Modernizr JS -->
+	<script src="js/modernizr-2.6.2.min.js"></script>
+	<!-- FOR IE9 below -->
+	<!--[if lt IE 9]>
+	<script src="js/respond.min.js"></script>
+	<![endif]-->
+
+	<!-- my style stuff-->
+	<style>
+		.slidecontainer {
+		width: 100%;
+		}
+	  
+		.slider {
+		-webkit-appearance: none;
+		margin-top: -20px; 
+		margin-bottom: 20px;
+		width: 100%;
+		height: 25px;
+		background: #d3d3d3;
+		outline: none;
+		opacity: 0.7;
+		-webkit-transition: .2s;
+		transition: opacity .2s;
+		}
+	  
+		.slider:hover {
+		opacity: 1;
+		}
+	  
+		.slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 25px;
+		height: 25px;
+		background: #4CAF50;
+		cursor: pointer;
+		}
+	  
+		.slider::-moz-range-thumb {
+		width: 25px;
+		height: 25px;
+		background: #4CAF50;
+		cursor: pointer;
+		}
+	</style>
+
+	</head>
+	<body>
+	<div id="fh5co-page">
+		<div id="fh5co-main">
+			<div class="fh5co-narrow-content">
+				<div class="row row-bottom-padded-md">
+				<a href="index.html" class="lead" align="right"><i class="icon-arrow-left3"></i> Home </a>
+				</div>
+				<div class="row row-bottom-padded-md">
+					<div class="col-md-6 animate-box" data-animate-effect="fadeInLeft">
+						
+						<canvas id="glscreen"></canvas>
+						
+					</div>
+				</div>
+				<div class="row row-bottom-padded-md">
+					<div class="col-md-6 animate-box" data-animate-effect="fadeInLeft">
+						<p><b>Zoom slider</b> - our 'camera' start point</p>
+						<div class="slidecontainer">
+						<input type="range" min="1" max="100" value="10" class="slider" id="sliderStart">
+						</div>
+						<p><b>Ray step size</b> - how far do we render forward?</p>
+						<div class="slidecontainer">
+						<input type="range" min="1" max="50" value="10" class="slider" id="sliderRayStepSize">
+						</div>
+						<p><b>Number of ray steps</b> - how many steps do we render forward?</p>
+						<div class="slidecontainer">
+						<input type="range" min="10" max="100" value="50" class="slider" id="sliderRayStepNumber">
+						</div>
+						<p><b>Number of mandelbulb iterations</b></p>
+						<div class="slidecontainer">
+						<input type="range" min="1" max="8" value="4" class="slider" id="sliderIterations">
+						</div>
+						<p><b>Parameter 1</b></p>
+						<div class="slidecontainer">
+						<input type="range" min="-100" max="100" value="0" class="slider" id="sliderParam1">
+						</div>
+						<p><b>Parameter 2</b></p>
+						<div class="slidecontainer">
+						<input type="range" min="-100" max="100" value="10" class="slider" id="sliderParam2">
+						</div>
+					</div>
+				</div>
+			</div>
+
+			
+		</div>
+	</div>
+
+	<!-- jQuery -->
+	<script src="js/jquery.min.js"></script>
+	<!-- jQuery Easing -->
+	<script src="js/jquery.easing.1.3.js"></script>
+	<!-- Bootstrap -->
+	<script src="js/bootstrap.min.js"></script>
+	<!-- Waypoints -->
+	<script src="js/jquery.waypoints.min.js"></script>
+	<!-- Flexslider -->
+	<script src="js/jquery.flexslider-min.js"></script>
+	
+	
+	<!-- MAIN JS -->
+	<script src="js/main.js"></script>
+
+
+	<script id="2d-vertex-shader" type="x-shader/x-vertex">// <![CDATA[
+        attribute vec2 a_position;
+          void main() {
+            gl_Position = vec4(a_position, 0, 1);
+          }
+// ]]></script>
+
+	<script id="2d-fragment-shader" type="x-shader/x-fragment">
+	#ifdef GL_FRAGMENT_PRECISION_HIGH
+	precision highp float;
+	#else
+	precision mediump float;
+	#endif
+
+	// parameters from sliders or mouse position etc
+	uniform vec3 fractal_pos;
+	uniform vec3 start;
+	uniform float param1;
+	uniform float param2;
+	uniform float rayStepAmount;
+	uniform float rayStepNumber;
+	uniform float iterationAmount;
+
+	uniform float width;
+	uniform float height;
+	
+
+	void main() {
+		//float normalizedX = gl_FragCoord.x - 400.0;
+		//float normalizedY = gl_FragCoord.y - 400.0;
+
+		float normalizedX = ((gl_FragCoord.x / width) - 0.5)*1000.0 * (width / (width + height));
+		float normalizedY = ((gl_FragCoord.y / height) - 0.5)*1000.0 * (height / (width + height));
+
+		float window_distance = 200.0; // (distance from camera) // consider the rectangle we draw being the 'window' we look out
+
+		vec3 ray_dir = normalize(vec3(normalizedX,normalizedY,window_distance));
+		//vec3 ray_dir_inc = 2.0*ray_dir;
+		vec4 colour = vec4(0.1,0.1,0.1,1.0);
+		float alpha = 1.0;
+
+		vec3 light_pos = vec3(5.0,5.0,0.9);
+
+		const int max_ray_distance = 50;
+		const int iterations = 20;
+
+		const float floor_level = -300.0;
+
+		bool getting_shadow = false;
+		float incrementingStepAmount = 0.01;
+		vec3 ray_pos = start;
+		for (int i = 0; i < max_ray_distance; i += 1){
+			if (i > int(rayStepNumber)) {
+				break;
+			}
+			// we march the ray forward each loop
+			int a = 0;
+			vec3 w = (ray_pos - fractal_pos);
+			vec3 w_original = (ray_pos - fractal_pos);
+			float m = dot(w,w);
+			float dz = 1.0;
+
+			
+			ray_pos += ray_dir*incrementingStepAmount*rayStepAmount; // march the ray forward
+			incrementingStepAmount += 0.01;
+
+			float min_dist = distance(w,fractal_pos);
+
+			// we use more of the fractal iterations for points closer to the viewer
+			
+			float ray_dist_ratio = float(i) * (1.0 / float(max_ray_distance));
+			float detail_amount = ((1.0 - (ray_dist_ratio))*float(iterations)) + 1.0;
+			//float detail_amount = 6.0;
+			
+			for (int iter = 0; iter < iterations; iter += 1) {
+				if (iter > int(detail_amount)) {
+				break;
+				}
+				if (iter > int(iterationAmount)) {
+					break;
+				}
+				// computing an iteration of the mandelbulb function
+
+				float m2 = m*m;
+				float m4 = m2*m2;
+					//dz = 8.0*sqrt(m4*m2*m)*dz + 1.0;
+				dz = 8.0*sqrt(m4*m2*m)*dz + 1.0;
+
+				float x = w.x; float x2 = x*x; float x4 = x2*x2;
+				float y = w.y; float y2 = y*y; float y4 = y2*y2;
+				float z = w.z; float z2 = z*z; float z4 = z2*z2;
+
+				float k3 = x2 + z2;
+				float k2 = inversesqrt( k3*k3*k3*k3*k3*k3*k3 );
+				float k1 = x4 + y4 + z4 - 6.0*y2*z2 - 6.0*x2*y2 + 2.0*z2*x2;
+				float k4 = x2 - y2 + z2;
+
+
+
+				w.x =  w_original.x + 64.0*x*y*z*(x2-z2)*k4*(x4-6.0*x2*z2+z4)*k1*k2;
+				w.y =  w_original.y + -16.0*y2*k3*k4*k4 + k1*k1*param2 + param1;
+				w.z =  w_original.z + -8.0*y*k4*(x4*x4 - 28.0*x4*x2*z2 + 70.0*x4*z4 - 28.0*x2*z2*z4 + z4*z4)*k1*k2;
+
+
+				min_dist = min(min_dist, distance(w, fractal_pos));
+
+				m = dot(w,w);
+				if (m > 200.0) {
+				break;
+				}
+
+
+			}
+			// if it tends to 'infinity' (> 200) do this:
+			if (m <= 200.0) {
+				min_dist = (0.5*min_dist)/(distance(w_original, fractal_pos)) + 0.5;
+				//colour.x = 1.0;
+
+				colour = vec4(min_dist,min_dist,min_dist,1.0);
+				//colour.w = 0.025*log(m)*sqrt(m)/dz;// length(w_original)/length(fractal_pos);//
+				// we've hit the mandelbulb, so can stop marching ray forward
+
+				// now march ray towards light_pos, to see if this part of the fractal is in a shadow
+
+				if (getting_shadow == false){
+				ray_dir = normalize(light_pos - ray_pos) * 10.0;
+				ray_pos += ray_dir*0.001;
+				//i = max_ray_distance - 20;
+				getting_shadow = true;
+				} else {
+				// we hit fractal again - so we are in a shadow
+				colour = colour - vec4(0.4,0.4,0.4,0.0);
+				break;
+				}
+
+			}
+		}
+		gl_FragColor = colour;
+	}
+	</script>
+
+	<script>
+		var gl;
+		var canvas;
+		var shaderScript;
+		var shaderSource;
+		var vertexShader;
+		var fragmentShader;
+		var buffer;
+
+		var sphere_pos;
+
+		canvas = document.getElementById('glscreen');
+		gl = canvas.getContext('experimental-webgl');
+
+		//article = document.getElementsByClassName("mt-negative");
+		//console.log(article);
+		//console.log(article.offsetLeft);
+		//canvas.width  = 800;
+		//canvas.height = 800;
+		canvas.width = Math.floor(Math.min((window.innerWidth - 200, 850)));
+		canvas.height = Math.floor(canvas.width / 1.6);
+		window.onload = init;
+
+		window.addEventListener('resize', onWindowResize, false);
+		function onWindowResize() {
+			canvas.width = Math.floor(Math.min((window.innerWidth - 200, 850)));
+			canvas.height = Math.floor(canvas.width / 1.6);
+			startRender = true;
+			gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+			gl.uniform1f(glWidth, canvas.width/1.0);
+			gl.uniform1f(glHeight, canvas.height/1.0);
+			//gl.compileShader(vertexShader);
+			//gl.compileShader(fragmentShader);
+			//init();
+		}
+		var startRender = true;
+		function init() {
+			startRender = true;
+			gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+			buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+			gl.bufferData(
+				gl.ARRAY_BUFFER,
+				new Float32Array([
+				-1.0, -1.0,
+				1.0, -1.0,
+				-1.0,  1.0,
+				-1.0,  1.0,
+				1.0, -1.0,
+				1.0,  1.0]),
+				gl.STATIC_DRAW
+			);
+
+
+			shaderScript = document.getElementById("2d-vertex-shader");
+			shaderSource = shaderScript.text;
+			vertexShader = gl.createShader(gl.VERTEX_SHADER);
+			gl.shaderSource(vertexShader, shaderSource);
+			gl.compileShader(vertexShader);
+
+			shaderScript   = document.getElementById("2d-fragment-shader");
+			shaderSource   = shaderScript.text;
+			fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+			gl.shaderSource(fragmentShader, shaderSource);
+			gl.compileShader(fragmentShader);
+
+			program = gl.createProgram();
+			gl.attachShader(program, vertexShader);
+			gl.attachShader(program, fragmentShader);
+			gl.linkProgram(program);
+			gl.useProgram(program);
+
+			fractal_pos = gl.getUniformLocation(program,"fractal_pos");
+			start = gl.getUniformLocation(program,"start");
+			param1 = gl.getUniformLocation(program,"param1");
+			param2 = gl.getUniformLocation(program,"param2");
+			rayStepAmount = gl.getUniformLocation(program,"rayStepAmount");
+			rayStepNumber = gl.getUniformLocation(program,"rayStepNumber");
+			iterationAmount = gl.getUniformLocation(program,"iterationAmount");
+			glWidth = gl.getUniformLocation(program,"width");
+			glHeight = gl.getUniformLocation(program,"height");
+
+			gl.uniform1f(glWidth, canvas.width/1.0);
+			gl.uniform1f(glHeight, canvas.height/1.0);
+			render();
+
+		}
+
+
+
+		var sliderAction = false;
+
+		var zoomSlider = document.getElementById('sliderStart');
+		var param1Slider = document.getElementById('sliderParam1');
+		var param2Slider = document.getElementById('sliderParam2');
+		var rayStepSizeSlider = document.getElementById('sliderRayStepSize');
+		var rayStepNumberSlider = document.getElementById('sliderRayStepNumber');
+		var iterationsSlider = document.getElementById('sliderIterations');
+
+		zoomSlider.oninput = function() {
+			sliderAction = true;
+		}
+		param1Slider.oninput = function() {
+			sliderAction = true;
+		}
+		param2Slider.oninput = function() {
+			sliderAction = true;
+		}
+		rayStepSizeSlider.oninput = function() {
+			sliderAction = true;
+		}
+		rayStepNumberSlider.oninput = function() {
+			sliderAction = true;
+		}
+		iterationsSlider.oninput = function() {
+			sliderAction = true;
+		}
+		/*================= Mouse events ======================*/
+
+
+		var THETA = 0.0,PHI = 0.0;
+		var AMORTIZATION = 0.8;
+		var drag = false;
+		var old_x, old_y;
+		var dX = 0, dY = 0;
+
+		var mouseDown = function(e) {
+		drag = true;
+		old_x = e.pageX, old_y = e.pageY;
+		e.preventDefault();
+		return false;
+		};
+
+		var mouseUp = function(e){
+		drag = false;
+		};
+
+		var mouseMove = function(e) {
+		if (!drag) return false;
+		dX = (e.pageX-old_x)*2*Math.PI/canvas.width,
+		dY = (e.pageY-old_y)*2*Math.PI/canvas.height;
+		THETA+= dX;
+		PHI+=dY;
+		old_x = e.pageX, old_y = e.pageY;
+		e.preventDefault();
+		};
+
+		canvas.addEventListener("mousedown", mouseDown, false);
+		canvas.addEventListener("mouseup", mouseUp, false);
+		canvas.addEventListener("mouseout", mouseUp, false);
+		canvas.addEventListener("mousemove", mouseMove, false);
+
+
+
+
+
+
+
+		function render() {
+			/*
+			if (!drag) {
+				dX *= AMORTIZATION, dY*=AMORTIZATION;
+				THETA+=dX, PHI+=dY;
+			}
+			*/
+			
+			window.requestAnimationFrame(render, canvas);
+			if (drag || startRender || sliderAction) {
+				startRender = false;
+				sliderAction = false;
+				console.log(rayStepSizeSlider.value);
+				gl.uniform3fv(fractal_pos,[THETA*1.0,-PHI*1.0,1.4]);
+				gl.uniform3fv(start,[0.0, 0.0,sliderStart.value/100.0]);
+				gl.uniform1f(param1,sliderParam1.value/100.0);
+				gl.uniform1f(param2,sliderParam2.value/10.0);
+				gl.uniform1f(rayStepAmount, rayStepSizeSlider.value/10.0);
+				gl.uniform1f(rayStepNumber, rayStepNumberSlider.value);
+				gl.uniform1f(iterationAmount, iterationsSlider.value/1.0);
+
+				gl.clearColor(1.0, 0.0, 0.0, 1.0);
+				gl.clear(gl.COLOR_BUFFER_BIT);
+
+				positionLocation = gl.getAttribLocation(program, "a_position");
+				gl.enableVertexAttribArray(positionLocation);
+				gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+				gl.drawArrays(gl.TRIANGLES, 0, 6);
+			}
+
+		}
+
+
+	</script>
+
+	</body>
+</html>
+
